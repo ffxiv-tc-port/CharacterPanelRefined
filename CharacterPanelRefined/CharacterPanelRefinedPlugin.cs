@@ -20,6 +20,9 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
         Service.Initialize(pluginInterface);
 
         Configuration = Configuration.Get(pluginInterface);
+        // 指令的 HelpMessage 在 ConfigWindow 建構時就固定下來,語系必須在那之前套用,
+        // 否則 /xlhelp 與插件安裝器的指令清單會永遠停在英文。
+        ApplyCulture();
         configWindow = new ConfigWindow(this, pluginInterface);
         GameFunctions = new GameFunctions();
         characterStatusAugments = new CharacterStatusAugments(this);
@@ -35,6 +38,11 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
     }
 
     internal void UpdateLanguage() {
+        ApplyCulture();
+        characterStatusAugments.ReloadLocs();
+    }
+
+    private void ApplyCulture() {
         var lang = "";
 
         if (Configuration.UseGameLanguage) {
@@ -51,8 +59,6 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
         }
 
         Localization.Culture = new CultureInfo(lang);
-
-        characterStatusAugments.ReloadLocs();
     }
 
     private void FrameworkOnUpdate(IFramework framework) {

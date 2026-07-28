@@ -193,7 +193,16 @@ namespace CharacterPanelRefined {
                 return ResourceManager.GetString("Config_Character_Panel_Refined_Config", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open the Character Panel Refined configuration..
+        /// </summary>
+        internal static string Config_Command_Help {
+            get {
+                return ResourceManager.GetString("Config_Command_Help", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to To apply any config changes you must reopen the character panel..
         /// </summary>
