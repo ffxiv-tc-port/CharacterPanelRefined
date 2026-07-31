@@ -493,12 +493,27 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         var charStatus = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonByName("CharacterStatus");
         if (charStatus != null && charStatus->IsVisible) {
             RequestedUpdate((IntPtr)charStatus);
-            // Refresh the currently active tooltip
-            var tooltipManager = &AtkStage.Instance()->TooltipManager;
-            var currentTooltipNode = ((AtkResNode**)tooltipManager)[4];
-            if (currentTooltipNode == null)
-                return;
-            plugin.GameFunctions.AtkTooltipManagerShowNodeTooltip(tooltipManager, currentTooltipNode);
+
+            // ⚠️ 2026-07-31 移除「重新整理當前 tooltip」那段。原本的程式碼是:
+            //     var tooltipManager  = &AtkStage.Instance()->TooltipManager;
+            //     var currentTooltipNode = ((AtkResNode**)tooltipManager)[4];   // = +0x20
+            //     if (currentTooltipNode == null) return;
+            //     plugin.GameFunctions.AtkTooltipManagerShowNodeTooltip(tooltipManager, currentTooltipNode);
+            //
+            // 問題:現行 ClientStructs 的 AtkTooltipManager **在 +0x20 沒有任何具名欄位**
+            // (+0x08 TooltipMap 佔到 +0x18、+0x18 AtkStage* 佔到 +0x20,之後到 +0x50 全是空白)。
+            // 那 8 bytes 的內容未知,卻被當成 AtkResNode* 並交給簽名掃描取得的原生函式去解參考。
+            // 這與「Tab 補完崩潰」是同一形狀:非指標值被當指標再交給遊戲。唯一的防護是 == null,
+            // 擋不住計數器/旗標/其他物件指標。角色屬性視窗開著時每按一次 Ctrl 就走一次。
+            //
+            // 為什麼不是「加防護」而是整段移除:要驗證它是不是節點就得讀 node->Type,
+            // 而那本身就是對可疑指標的解參考——範圍檢查無法讓「假設不成立也不會崩」成立。
+            // 例外隔離也無效(懸空指標的 AVE 是 corrupted-state exception,try/catch 攔不到)。
+            //
+            // 代價:按 Ctrl 時已顯示的 tooltip 不會立即重繪,要移開滑鼠再移回來。核心的
+            // RequestedUpdate 不受影響。
+            // 要恢復此功能,必須先離線在 ffxiv_dx11.exe 找出寫入 AtkTooltipManager+0x20 的指令、
+            // 確認它確實是當前 tooltip 的節點指標,或改用 CS 已具名的 TooltipMap 走訪。
         }
     }
 
