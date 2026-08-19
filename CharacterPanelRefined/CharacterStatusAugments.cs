@@ -238,9 +238,17 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         newCollNode->AtkResNode.Y = forTextNode->AtkResNode.Y;
         newCollNode->AtkResNode.AtkEventManager.Event = null;
         component->Component->UldManager.UpdateDrawNodeList();
+
+        // 🔴 AtkStage.Instance() 是 isPointer:true 的靜態位址，會合法回 null；裸解參考是攔不到的 AVE。
+        //    ⚠️ 這一處不在原掃描清單裡，是修 Update() 那處時同檔同形一併掃到的。
+        //    判空刻意放在 GetUISpace()->Create 之前：先配置再放棄會漏掉那塊 UI 記憶體。
+        //    取不到就不掛 tooltip —— 上面的節點都已建好，差別只是滑過去沒有說明文字。
+        var stage = AtkStage.Instance();
+        if (stage == null) return;
+
         var tooltipArgs = IMemorySpace.GetUISpace()->Create<AtkTooltipManager.AtkTooltipArgs>();
         tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
-        AtkStage.Instance()->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+        stage->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
     }
 
     private AtkTextNode* AddStatRow(AtkComponentNode* parentNode, string label, bool hideOriginal = false, bool copyColor = false, bool expandCollisionNode = true) {
@@ -289,7 +297,14 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         if (collisionNode == null)
             return;
 
-        var ttMgr = AtkStage.Instance()->TooltipManager;
+        // 🔴 同上：AtkStage.Instance() 會合法回 null，裸解參考是攔不到的 AVE。
+        //    ⚠️ 這一處同樣不在原掃描清單裡，是同檔同形一併掃到的。
+        //    取不到就不改 tooltip 文字（維持原文），與上面 collisionNode == null 同一條放棄路徑。
+        var stage = AtkStage.Instance();
+        if (stage == null)
+            return;
+
+        var ttMgr = stage->TooltipManager;
         var ttMsg = ttMgr.TooltipMap[collisionNode].Value;
         ttMsg->AtkTooltipArgs.TextArgs.Text = (byte*)tooltips[entry];
     }
@@ -490,7 +505,18 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     }
 
     internal void Update() {
-        var charStatus = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonByName("CharacterStatus");
+        // 🔴 原本是兩層裸鏈。AtkStage.Instance() 是 [StaticAddress(..., isPointer: true)]：
+        //    產生器讀「指標的位址」再解參考一層，遊戲尚未建立單例時回 null
+        //    （非 isPointer 的那種才保證不回 null，是擲 InvalidOperationException）。
+        //    RaptureAtkUnitManager 又是 AtkStage +0x20 的裸欄位，同樣可能是 null。
+        //    裸解參考 null 原生指標是 AVE，屬 corrupted-state exception，try/catch 攔不到。
+        //    取不到就整段跳過 —— 與既有的 charStatus == null 同一條路徑（這一輪不更新面板）。
+        var stage = AtkStage.Instance();
+        if (stage == null) return;
+        var raptureAtkUnitManager = stage->RaptureAtkUnitManager;
+        if (raptureAtkUnitManager == null) return;
+
+        var charStatus = raptureAtkUnitManager->GetAddonByName("CharacterStatus");
         if (charStatus != null && charStatus->IsVisible) {
             RequestedUpdate((IntPtr)charStatus);
 
