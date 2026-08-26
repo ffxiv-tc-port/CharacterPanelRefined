@@ -54,7 +54,7 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private AtkTextNode* gpBasePtr;
 
     internal void OnSetup(AddonEvent type, AddonArgs args) {
-        var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
+        var atkUnitBase = (AtkUnitBase*)args.Addon;
         var uiState = UIState.Instance();
         var job = (JobId)uiState->PlayerState.CurrentClassJobId;
         var lvl = uiState->PlayerState.CurrentLevel;
@@ -240,7 +240,7 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         component->Component->UldManager.UpdateDrawNodeList();
         var tooltipArgs = IMemorySpace.GetUISpace()->Create<AtkTooltipManager.AtkTooltipArgs>();
         tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
-        AtkStage.Instance()->TooltipManager.AttachTooltip(AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+        AtkStage.Instance()->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
     }
 
     private AtkTextNode* AddStatRow(AtkComponentNode* parentNode, string label, bool hideOriginal = false, bool copyColor = false, bool expandCollisionNode = true) {
