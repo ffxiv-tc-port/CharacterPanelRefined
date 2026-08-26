@@ -165,6 +165,9 @@ Any item with an ilvl higher than the limit will lose all its melds and its stat
     <data name="Config_Character_Panel_Refined_Config" xml:space="preserve">
         <value>Character Panel Refined Config</value>
     </data>
+    <data name="Config_Command_Help" xml:space="preserve">
+        <value>Open the Character Panel Refined configuration.</value>
+    </data>
     <data name="Config_Override_default_tooltips" xml:space="preserve">
         <value>Replace the Character Panel's built-in tooltips with more detailed ones</value>
     </data>

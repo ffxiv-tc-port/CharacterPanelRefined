@@ -14,7 +14,7 @@ public sealed class ConfigWindow : IDisposable {
         pluginInterface.UiBuilder.Draw += Draw;
         pluginInterface.UiBuilder.OpenConfigUi += () => showConfig = true;
         Service.CommandManager.AddHandler("/cprconfig",
-            new CommandInfo((_, _) => showConfig ^= true) { HelpMessage = "Open the Character Panel Refined configuration." });
+            new CommandInfo((_, _) => showConfig ^= true) { HelpMessage = Localization.Config_Command_Help });
     }
 
     private void Draw() {
