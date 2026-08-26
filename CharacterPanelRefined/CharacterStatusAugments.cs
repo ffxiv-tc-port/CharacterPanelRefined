@@ -54,7 +54,7 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private AtkTextNode* gpBasePtr;
 
     internal void OnSetup(AddonEvent type, AddonArgs args) {
-        var atkUnitBase = (AtkUnitBase*)args.Addon;
+        var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
         var uiState = UIState.Instance();
         var job = (JobId)uiState->PlayerState.CurrentClassJobId;
         var lvl = uiState->PlayerState.CurrentLevel;
