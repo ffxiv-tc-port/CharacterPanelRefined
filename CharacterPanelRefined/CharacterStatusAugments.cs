@@ -54,6 +54,21 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private AtkTextNode* gpBasePtr;
 
     internal void OnSetup(AddonEvent type, AddonArgs args) {
+        // 🔴 進場先把 37 個節點指標全部清空,不可省略。
+        //    CharacterStatus 關閉時節點樹會被銷毀,而本外掛只註冊了 PostSetup 與 PreRequestedUpdate、
+        //    **沒有任何 Finalize 監聽器**,所以關閉的那一刻沒有地方會清指標。
+        //    下面有 6 組指標是「對應 Show* 設定開啟時才重新賦值」:
+        //    expectedHealPtr / expectedDamagePtr / dhDamagePtr / critDmgIncreasePtr / ilvlSyncPtr /
+        //    DoH·DoL 那 8 個。使用者把某個 Show* 從開改關後再重開面板,走到這裡時那組指標不會被覆寫,
+        //    於是**殘留指向已銷毀的節點**;而本函式結尾的 characterStatusPtr = atkUnitBase 會讓
+        //    RequestedUpdate 開頭那道「位址不符就 ClearPointers」的防線失效(位址是相符的)。
+        //    寫入懸空節點是 AVE,屬 corrupted-state exception,try/catch 與例外隔離都攔不到。
+        //    ⚠️ 設定視窗自己寫著「套用任何設定變更後必須重新開啟角色面板」——
+        //    觸發路徑正是我們要求使用者做的標準操作,不是邊角案例。
+        //    在這裡清空是安全的:無條件賦值的那些,都在結尾呼叫 UpdateCharacterPanelForJob 之前補回;
+        //    條件式的那些保持 null,由各自的使用點判空。
+        ClearPointers();
+
         var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
         var uiState = UIState.Instance();
         var job = (JobId)uiState->PlayerState.CurrentClassJobId;
@@ -410,22 +425,33 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             }
         }
 
+        // ⚠️ 這一段原本只有「設定開著嗎」這道閘門,那是設定值檢查、不是判空——
+        //    另外 5 組條件式指標的使用點都有 `!= null`,只有這 8 個沒有,是半套邊界檢查。
+        //    真實可達路徑(不需要重開面板):OnSetup 當下這個設定是關的(8 個指標＝null),
+        //    使用者接著在 /cprconfig 勾開 → 本函式的設定閘門立刻變 true(設定是即時讀的),
+        //    但節點還沒建 → 對 null 解參考。面板開著時按一次 Ctrl 就會走
+        //    Update() → RequestedUpdate() 撞上去。
+        //    保留設定閘門(不回退既有行為),只補判空。
         if (plugin.Configuration.ShowDoHDoLStatsWithoutFood) {
             if (jobId.IsCrafter()) {
-                var fd = Equations.EstimateBaseStats(uiState);
-                craftsmanshipBasePtr->SetText(fd.GetValueOrDefault(Attributes.Craftsmanship, uiState->PlayerState.Attributes[(int)Attributes.Craftsmanship])
-                    .ToString());
-                controlBasePtr->SetText(fd.GetValueOrDefault(Attributes.Control, uiState->PlayerState.Attributes[(int)Attributes.Control]).ToString());
-                cpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxCp].ToString());
-                cpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxCp, uiState->PlayerState.Attributes[(int)Attributes.MaxCp]).ToString());
+                if (craftsmanshipBasePtr != null && controlBasePtr != null && cpPtr != null && cpBasePtr != null) {
+                    var fd = Equations.EstimateBaseStats(uiState);
+                    craftsmanshipBasePtr->SetText(fd.GetValueOrDefault(Attributes.Craftsmanship, uiState->PlayerState.Attributes[(int)Attributes.Craftsmanship])
+                        .ToString());
+                    controlBasePtr->SetText(fd.GetValueOrDefault(Attributes.Control, uiState->PlayerState.Attributes[(int)Attributes.Control]).ToString());
+                    cpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxCp].ToString());
+                    cpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxCp, uiState->PlayerState.Attributes[(int)Attributes.MaxCp]).ToString());
+                }
             } else if (jobId.IsGatherer()) {
-                var fd = Equations.EstimateBaseStats(uiState);
-                gatheringBasePtr->SetText(fd.GetValueOrDefault(Attributes.Gathering, uiState->PlayerState.Attributes[(int)Attributes.Gathering])
-                    .ToString());
-                perceptionBasePtr->SetText(fd.GetValueOrDefault(Attributes.Perception, uiState->PlayerState.Attributes[(int)Attributes.Perception])
-                    .ToString());
-                gpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxGp].ToString());
-                gpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxGp, uiState->PlayerState.Attributes[(int)Attributes.MaxGp]).ToString());
+                if (gatheringBasePtr != null && perceptionBasePtr != null && gpPtr != null && gpBasePtr != null) {
+                    var fd = Equations.EstimateBaseStats(uiState);
+                    gatheringBasePtr->SetText(fd.GetValueOrDefault(Attributes.Gathering, uiState->PlayerState.Attributes[(int)Attributes.Gathering])
+                        .ToString());
+                    perceptionBasePtr->SetText(fd.GetValueOrDefault(Attributes.Perception, uiState->PlayerState.Attributes[(int)Attributes.Perception])
+                        .ToString());
+                    gpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxGp].ToString());
+                    gpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxGp, uiState->PlayerState.Attributes[(int)Attributes.MaxGp]).ToString());
+                }
             }
         }
 
