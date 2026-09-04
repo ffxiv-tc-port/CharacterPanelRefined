@@ -3,7 +3,7 @@
   "Name": "Character Panel Refined",
   "InternalName": "CharacterPanelRefined",
   "AssemblyVersion": "7.15.0.1",
-  "Description": "Character Panel Refined 精簡了角色狀態面板中的無用資訊，並加入了會心與直擊機率等實用數值，以及預估輸出傷害，方便比較裝備優劣。",
+  "Description": "Character Panel Refined 精簡了角色狀態面板中的無用資訊，並加入了暴擊與直擊機率等實用數值，以及預估輸出傷害，方便比較裝備優劣。",
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/ffxiv-tc-port/CharacterPanelRefined",
   "Tags": [
@@ -23,6 +23,6 @@
     "https://raw.githubusercontent.com/Kouzukii/ffxiv-characterstatus-refined/master/images/image2.png"
   ],
   "IconUrl": "https://raw.githubusercontent.com/ffxiv-tc-port/DalamudPluginsTC/main/icons/CharacterPanelRefined.png",
-  "Punchline": "Refine the character panel to display only useful information like crit and direct hit chance",
+  "Punchline": "精簡角色面板，只留暴擊、直擊等實用數值。",
   "AcceptsFeedback": true
 }
