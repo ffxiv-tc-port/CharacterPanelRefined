@@ -1,11 +1,19 @@
 # Character Panel Refined
 
-Character Panel Refined cuts away useless information from the character panel, while adding useful stats like critical hit and direct hit percentages as well as estimates damage output to allow for easier comparison of gear.
+精簡角色面板顯示的資訊，並加入實用數值（暴擊、直擊機率提升，以及預估輸出），方便比較裝備。
 
-![image1](CharacterPanelRefined/images/image1.png)
+## 功能
 
-![image2](CharacterPanelRefined/images/image2.png)
+- 角色面板加入暴擊傷害提升、直擊傷害提升百分比
+- 顯示套裝的平均傷害／平均治療預估值，方便比較不同裝備
+- 顯示不含消耗品（藥劑／食物）的製作、採集屬性
+- 顯示裝備等級資訊
+- 物品提示中顯示等級同步後的屬性
+- 可用更詳細的提示取代角色面板內建的提示
+- 可設定跟隨遊戲語言自動切換插件語言
 
-## Installation
+## 安裝
 
-Available for install via [Dalamud](https://github.com/goatcorp/FFXIVQuickLauncher)'s built-in plugin installer.
+在 Dalamud 設定的「自訂插件庫」加入
+`https://raw.githubusercontent.com/ffxiv-tc-port/DalamudPluginsTC/main/repo.json`
+並啟用，再從插件列表安裝。
