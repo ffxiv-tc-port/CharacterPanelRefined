@@ -729,5 +729,167 @@ namespace CharacterPanelRefined {
                 return ResourceManager.GetString("Tooltips_Wasting_Points_Singular", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gear Total.
+        /// </summary>
+        internal static string Panel_Gear_Total {
+            get {
+                return ResourceManager.GetString("Panel_Gear_Total", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Attributes provided by your equipped gear.
+        /// </summary>
+        internal static string Tooltips_Gear_Title {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Counted in the total.
+        /// </summary>
+        internal static string Tooltips_Gear_Counted {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Counted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Not counted in the total.
+        /// </summary>
+        internal static string Tooltips_Gear_Not_Counted {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Not_Counted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (gear {0} / materia {1}).
+        /// </summary>
+        internal static string Tooltips_Gear_Split {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Split", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Total (attributes this job uses).
+        /// </summary>
+        internal static string Tooltips_Gear_Total_Job {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Total_Job", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Total (all attributes).
+        /// </summary>
+        internal static string Tooltips_Gear_Total_All {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Total_All", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} equipment slot(s) could not be read, so this total is incomplete..
+        /// </summary>
+        internal static string Tooltips_Gear_Incomplete {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Incomplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to These are the values on the gear itself, including high quality bonuses and materia. Level sync and  [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string Tooltips_Gear_Raw_Note {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Raw_Note", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You are currently synced, so the values that actually apply are lower than the ones listed here..
+        /// </summary>
+        internal static string Tooltips_Gear_Synced_Note {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Synced_Note", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This client does not expose the game function used to read gear attributes, so the total cannot be c [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string Tooltips_Gear_Unavailable_Function {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Unavailable_Function", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Equipment data is not available yet..
+        /// </summary>
+        internal static string Tooltips_Gear_Unavailable_Inventory {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Unavailable_Inventory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The attribute table could not be read..
+        /// </summary>
+        internal static string Tooltips_Gear_Unavailable_Sheet {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Unavailable_Sheet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reading gear attributes failed. See the plugin log for details..
+        /// </summary>
+        internal static string Tooltips_Gear_Unavailable_Error {
+            get {
+                return ResourceManager.GetString("Tooltips_Gear_Unavailable_Error", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show total attributes from gear.
+        /// </summary>
+        internal static string Config_Show_gear_contribution {
+            get {
+                return ResourceManager.GetString("Config_Show_gear_contribution", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Adds a "Gear Total" row to the gear section. Hover it to see how much each single attribute comes fr [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string Tooltip_Show_gear_contribution {
+            get {
+                return ResourceManager.GetString("Tooltip_Show_gear_contribution", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gear total counts every attribute.
+        /// </summary>
+        internal static string Config_Gear_total_all_stats {
+            get {
+                return ResourceManager.GetString("Config_Gear_total_all_stats", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to By default the total only adds up the attributes this job actually uses, because main attributes and [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string Tooltip_Gear_total_all_stats {
+            get {
+                return ResourceManager.GetString("Tooltip_Gear_total_all_stats", resourceCulture);
+            }
+        }
     }
 }

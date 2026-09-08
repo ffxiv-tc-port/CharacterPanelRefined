@@ -12,8 +12,15 @@ namespace CharacterPanelRefined;
 
 public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin plugin) : IDisposable {
     private readonly Tooltips tooltips = new();
+    private readonly GearStats gearStats = new();
 
     private JobId lastJob;
+
+    /// <summary>「裝備屬性合計」那一列在「裝備等級同步」列有顯示時該待的 Y。</summary>
+    private float gearTotalBaseY;
+
+    /// <summary>上一次組裝備 tooltip 時的同步狀態,用來決定要不要重組。</summary>
+    private bool gearTooltipSynced;
 
     private AtkUnitBase* characterStatusPtr;
     private AtkTextNode* dhChancePtr;
@@ -52,14 +59,17 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private AtkTextNode* perceptionBasePtr;
     private AtkTextNode* gpPtr;
     private AtkTextNode* gpBasePtr;
+    private AtkTextNode* gearTotalPtr;
+    private AtkCollisionNode* gearTotalCollPtr;
 
     internal void OnSetup(AddonEvent type, AddonArgs args) {
-        // 🔴 進場先把 37 個節點指標全部清空,不可省略。
+        // 🔴 進場先把 39 個節點指標全部清空,不可省略。
         //    CharacterStatus 關閉時節點樹會被銷毀,而本外掛只註冊了 PostSetup 與 PreRequestedUpdate、
         //    **沒有任何 Finalize 監聽器**,所以關閉的那一刻沒有地方會清指標。
-        //    下面有 6 組指標是「對應 Show* 設定開啟時才重新賦值」:
+        //    下面有 7 組指標是「對應 Show* 設定開啟時才重新賦值」:
         //    expectedHealPtr / expectedDamagePtr / dhDamagePtr / critDmgIncreasePtr / ilvlSyncPtr /
-        //    DoH·DoL 那 8 個。使用者把某個 Show* 從開改關後再重開面板,走到這裡時那組指標不會被覆寫,
+        //    gearTotalPtr·gearTotalCollPtr / DoH·DoL 那 8 個。
+        //    使用者把某個 Show* 從開改關後再重開面板,走到這裡時那組指標不會被覆寫,
         //    於是**殘留指向已銷毀的節點**;而本函式結尾的 characterStatusPtr = atkUnitBase 會讓
         //    RequestedUpdate 開頭那道「位址不符就 ClearPointers」的防線失效(位址是相符的)。
         //    寫入懸空節點是 AVE,屬 corrupted-state exception,try/catch 與例外隔離都攔不到。
@@ -187,6 +197,16 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             var avgItemLevelPtr = (AtkComponentNode*)gearPtr->ChildNode;
             ilvlSyncPtr = AddStatRow(avgItemLevelPtr, Localization.Panel_Item_level_Sync, copyColor: true, expandCollisionNode: false);
             CreateNewTooltip(atkUnitBase, ilvlSyncPtr, Tooltips.Entry.ItemLevelSync);
+            if (plugin.Configuration.ShowGearContribution) {
+                // ⚠️ 這一列**必須加在裝備等級同步那一列之後**。CreateNewTooltip 會把
+                //    「label 的 PrevSiblingNode」整個覆寫掉,前面若還接著別人就會被從兄弟鏈上砍掉
+                //    (那一列於是永遠不會被畫出來)。順序反過來就會踩到。
+                gearTotalPtr = AddStatRow(avgItemLevelPtr, Localization.Panel_Gear_Total, expandCollisionNode: false);
+                gearTotalBaseY = gearTotalPtr->AtkResNode.Y;
+                gearTotalCollPtr = AttachRowTooltip(atkUnitBase, gearTotalPtr, Tooltips.Entry.GearContribution);
+                // 節點是全新的,舊的計算結果對不上 —— 逼下一次 RequestedUpdate 重算並重寫文字。
+                gearStats.Invalidate();
+            }
         } else {
             gearPtr->ToggleVisibility(false);
         }
@@ -264,6 +284,67 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         var tooltipArgs = IMemorySpace.GetUISpace()->Create<AtkTooltipManager.AtkTooltipArgs>();
         tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
         stage->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+    }
+
+    /// <summary>
+    /// 幫某一列掛上自己的 tooltip 碰撞節點。與上面的 CreateNewTooltip 的差別是:
+    /// **它不會把後面的兄弟節點砍掉**。CreateNewTooltip 直接對
+    /// <c>label-&gt;PrevSiblingNode</c> 賦值,原本掛在那裡的整段鏈就此消失,
+    /// 只有在該列是這個元件裡最後加上去的一列時才剛好沒事。
+    /// 這裡把新節點**插進**鏈裡(前後都接好),所以加幾列都不會互相吃掉。
+    /// </summary>
+    /// <returns>新建的碰撞節點;任何一步取不到東西就回 null(代表這一列沒有 tooltip,其餘照常)。</returns>
+    private AtkCollisionNode* AttachRowTooltip(AtkUnitBase* parent, AtkTextNode* forTextNode, Tooltips.Entry tooltip) {
+        if (parent == null || forTextNode == null)
+            return null;
+        var component = (AtkComponentNode*)forTextNode->AtkResNode.ParentNode;
+        if (component == null || component->Component == null)
+            return null;
+        var rootNode = component->Component->UldManager.RootNode;
+        if (rootNode == null)
+            return null;
+        var labelNode = forTextNode->AtkResNode.PrevSiblingNode;
+        if (labelNode == null)
+            return null;
+
+        // 🔴 AtkStage.Instance() 是 isPointer:true 的靜態位址,會合法回 null;裸解參考是攔不到的 AVE。
+        //    判空放在配置 UI 記憶體之前 —— 先配置再放棄會漏掉那一塊。
+        var stage = AtkStage.Instance();
+        if (stage == null)
+            return null;
+        var uiSpace = IMemorySpace.GetUISpace();
+        if (uiSpace == null)
+            return null;
+
+        var newCollNode = Util.CloneNode((AtkCollisionNode*)rootNode);
+        var tail = labelNode->PrevSiblingNode;
+        newCollNode->AtkResNode.PrevSiblingNode = tail;
+        if (tail != null)
+            tail->NextSiblingNode = (AtkResNode*)newCollNode;
+        labelNode->PrevSiblingNode = (AtkResNode*)newCollNode;
+        newCollNode->AtkResNode.NextSiblingNode = labelNode;
+        newCollNode->AtkResNode.Y = forTextNode->AtkResNode.Y;
+        newCollNode->AtkResNode.AtkEventManager.Event = null;
+        component->Component->UldManager.UpdateDrawNodeList();
+
+        var tooltipArgs = uiSpace->Create<AtkTooltipManager.AtkTooltipArgs>();
+        if (tooltipArgs == null)
+            return newCollNode;
+        tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
+        stage->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+        return newCollNode;
+    }
+
+    /// <summary>
+    /// 搬動節點的 Y。等同於 AtkResNode::SetYFloat(台服 0x14062D9A0,已離線反組譯逐條核對:
+    /// 判空 → 值有變就把 DrawFlags 的 bit0 設起來 → 寫 +0x48 的 Y,總共 13 條指令)。
+    /// 自己做是為了不為了搬一個 Y 就多欠一個特徵碼相依 —— 特徵碼在台服對不上是靜默的。
+    /// </summary>
+    private static void SetNodeY(AtkResNode* node, float y) {
+        if (node == null || Math.Abs(node->Y - y) < 0.01f)
+            return;
+        node->DrawFlags |= 1;
+        node->Y = y;
     }
 
     private AtkTextNode* AddStatRow(AtkComponentNode* parentNode, string label, bool hideOriginal = false, bool copyColor = false, bool expandCollisionNode = true) {
@@ -375,6 +456,31 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         }
 
         var jobId = (JobId)uiState->PlayerState.CurrentClassJobId;
+
+        if (gearTotalPtr != null) {
+            // 沒有裝等同步時「裝備等級同步」那一列是隱藏的,會在上面留一個 20px 的空行。
+            // 把本列往上補回去,不要讓面板中間開一個洞。
+            var gearY = ilvlSync == null ? gearTotalBaseY - 20 : gearTotalBaseY;
+            SetNodeY((AtkResNode*)gearTotalPtr, gearY);
+            SetNodeY(gearTotalPtr->AtkResNode.PrevSiblingNode, gearY);
+            if (gearTotalCollPtr != null)
+                SetNodeY((AtkResNode*)gearTotalCollPtr, gearY);
+
+            var allStats = plugin.Configuration.GearTotalAllStats;
+            var synced = ilvlSync != null;
+            // 重算要對每個部位的每個屬性各呼叫兩次遊戲函式,只在裝備/職業/設定變動時做。
+            if (gearStats.Update(jobId, allStats) || gearTooltipSynced != synced) {
+                gearTooltipSynced = synced;
+                // 🔴 讀不到就要在列上看得見。把未知寫成 0 會直接誤導使用者,
+                //    所以完全讀不到是「?」,只讀到一部分是「數字?」。
+                gearTotalPtr->SetText(!gearStats.Available
+                    ? "?"
+                    : gearStats.Complete
+                        ? gearStats.Total.ToString("N0")
+                        : $"{gearStats.Total:N0}?");
+                tooltips.UpdateGearContribution(gearStats, jobId, allStats, synced);
+            }
+        }
 
         StatInfo gcdMain = new(), gcdAlt = new();
         var altGcd = jobId.AltGcd(lvl);
@@ -607,6 +713,8 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         perceptionBasePtr = null;
         gpPtr = null;
         gpBasePtr = null;
+        gearTotalPtr = null;
+        gearTotalCollPtr = null;
     }
 
     public void ReloadLocs() {

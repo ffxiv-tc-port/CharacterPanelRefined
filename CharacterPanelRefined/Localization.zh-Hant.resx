@@ -261,4 +261,61 @@
     <data name="Buff_Hyperphantasia_Abbrev" xml:space="preserve">
         <value>昇</value>
     </data>
+    <data name="Panel_Gear_Total" xml:space="preserve">
+        <value>裝備屬性合計</value>
+    </data>
+    <data name="Tooltips_Gear_Title" xml:space="preserve">
+        <value>目前裝備提供的屬性</value>
+    </data>
+    <data name="Tooltips_Gear_Counted" xml:space="preserve">
+        <value>納入合計</value>
+    </data>
+    <data name="Tooltips_Gear_Not_Counted" xml:space="preserve">
+        <value>未納入合計</value>
+    </data>
+    <data name="Tooltips_Gear_Split" xml:space="preserve">
+        <value>（裝備 {0}／魔晶石 {1}）</value>
+    </data>
+    <data name="Tooltips_Gear_Total_Job" xml:space="preserve">
+        <value>合計（本職業會用到的屬性）</value>
+    </data>
+    <data name="Tooltips_Gear_Total_All" xml:space="preserve">
+        <value>合計（全部屬性）</value>
+    </data>
+    <data name="Tooltips_Gear_Incomplete" xml:space="preserve">
+        <value>有 {0} 個裝備部位讀不到，這個合計並不完整。</value>
+    </data>
+    <data name="Tooltips_Gear_Raw_Note" xml:space="preserve">
+        <value>以上是裝備本身的數值，已含高品質加成與魔晶石，但未套用等級同步與裝備等級同步。</value>
+    </data>
+    <data name="Tooltips_Gear_Synced_Note" xml:space="preserve">
+        <value>目前處於同步狀態，實際生效的數值會低於這裡列出的原始值。</value>
+    </data>
+    <data name="Tooltips_Gear_Unavailable_Function" xml:space="preserve">
+        <value>這個客戶端找不到讀取裝備屬性用的遊戲函式，無法算出合計。</value>
+    </data>
+    <data name="Tooltips_Gear_Unavailable_Inventory" xml:space="preserve">
+        <value>目前還讀不到裝備欄的資料。</value>
+    </data>
+    <data name="Tooltips_Gear_Unavailable_Sheet" xml:space="preserve">
+        <value>讀不到屬性資料表。</value>
+    </data>
+    <data name="Tooltips_Gear_Unavailable_Error" xml:space="preserve">
+        <value>讀取裝備屬性時發生錯誤，詳情請見外掛記錄檔。</value>
+    </data>
+    <data name="Config_Show_gear_contribution" xml:space="preserve">
+        <value>顯示裝備屬性合計</value>
+    </data>
+    <data name="Tooltip_Show_gear_contribution" xml:space="preserve">
+        <value>在「裝備」區塊多加一列「裝備屬性合計」。
+把滑鼠移上去，可以看到目前裝備（含魔晶石）在每一項屬性上各給了多少。
+需要同時開啟「顯示裝備等級資訊」。</value>
+    </data>
+    <data name="Config_Gear_total_all_stats" xml:space="preserve">
+        <value>裝備屬性合計納入全部屬性</value>
+    </data>
+    <data name="Tooltip_Gear_total_all_stats" xml:space="preserve">
+        <value>預設只加總本職業真的會用到的屬性，因為主屬性與副屬性的量級不同，全部硬加起來的數字沒有比較的意義。
+開啟後改成加總全部屬性（仍然不含武器基本性能、攻擊間隔與格擋）。</value>
+    </data>
 </root>

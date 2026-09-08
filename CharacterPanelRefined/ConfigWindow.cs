@@ -78,6 +78,22 @@ public sealed class ConfigWindow : IDisposable {
                 conf.Save();
             }
 
+            var bShowGearContribution = conf.ShowGearContribution;
+            if (ImGui.Checkbox(Localization.Config_Show_gear_contribution, ref bShowGearContribution)) {
+                conf.ShowGearContribution = bShowGearContribution;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Show_gear_contribution);
+
+            var bGearTotalAllStats = conf.GearTotalAllStats;
+            if (ImGui.Checkbox(Localization.Config_Gear_total_all_stats, ref bGearTotalAllStats)) {
+                conf.GearTotalAllStats = bGearTotalAllStats;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Gear_total_all_stats);
+
             var bShowSyncedStats = conf.ShowSyncedStatsOnTooltip;
             if (ImGui.Checkbox(Localization.Config_Show_synced_stats, ref bShowSyncedStats)) {
                 conf.ShowSyncedStatsOnTooltip = bShowSyncedStats;
