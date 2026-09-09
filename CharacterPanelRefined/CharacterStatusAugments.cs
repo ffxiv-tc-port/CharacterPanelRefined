@@ -14,6 +14,9 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private readonly Tooltips tooltips = new();
     private readonly GearStats gearStats = new();
 
+    /// <summary>已經回報過「原生沒有可覆寫的說明文字」的項目,同一項只寫一次 log。</summary>
+    private readonly HashSet<Tooltips.Entry> missingTooltipSlots = new();
+
     private JobId lastJob;
 
     /// <summary>「裝備屬性合計」那一列在「裝備等級同步」列有顯示時該待的 Y。</summary>
@@ -389,6 +392,8 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             return;
         if (parentNode == null)
             return;
+        if (parentNode->Component == null)
+            return;
         var collisionNode = parentNode->Component->UldManager.RootNode;
         if (collisionNode == null)
             return;
@@ -400,9 +405,37 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         if (stage == null)
             return;
 
-        var ttMgr = stage->TooltipManager;
-        var ttMsg = ttMgr.TooltipMap[collisionNode].Value;
+        // 🔴 StdMap 的索引子對「不存在的鍵」不是回 null,而是**先插入一個預設值**再回傳 ref
+        //    (FFXIVClientStructs/STD/StdMap.cs 的 this[in TKey]:Tree.InsertEmpty + ConstructDefaultInPlace)。
+        //    Pointer<AtkTooltipInfo> 的預設值是 null ⇒ 緊接著的 .Value-> 解參考就是 AVE,
+        //    屬 corrupted-state exception,try/catch 與例外隔離完全攔不到 ⇒ 只能靠「不解 null」解決。
+        //    ⚠️ 判準是「原生有沒有替這個碰撞節點掛過 tooltip」,不是「指標是不是 null」。
+        //    多數呼叫點指向遊戲本來就有 tooltip 的那幾列,但治癒魔力(ExpectedHeal)與
+        //    魔法攻擊力(ExpectedDamage)那兩處**離線證不了**,所以一律改走 TryGetValuePointer:
+        //    它既不會插入垃圾項,也不會讓我們解到 null。
+        //    取不到就只跳過這一列的說明文字,其餘呼叫點照常(一列失敗不能拖垮其他 15 個)。
+        ref var ttMgr = ref stage->TooltipManager;
+        if (!ttMgr.TooltipMap.TryGetValuePointer(collisionNode, out var ttSlot) || ttSlot == null) {
+            WarnMissingTooltipSlot(entry);
+            return;
+        }
+
+        var ttMsg = ttSlot->Value;
+        if (ttMsg == null) {
+            WarnMissingTooltipSlot(entry);
+            return;
+        }
+
         ttMsg->AtkTooltipArgs.TextArgs.Text = (byte*)tooltips[entry];
+    }
+
+    /// <summary>
+    /// 這一列原生沒有可覆寫的說明文字時寫一則診斷。同一項只寫一次,免得每次開角色面板都洗版。
+    /// </summary>
+    private void WarnMissingTooltipSlot(Tooltips.Entry entry) {
+        if (!missingTooltipSlots.Add(entry))
+            return;
+        Service.PluginLog?.Information($"角色面板:這一列原生沒有可覆寫的說明文字,已跳過該列的說明({entry})");
     }
 
     private void SetTooltip(AtkTextNode* node, Tooltips.Entry entry) {
