@@ -1093,7 +1093,11 @@ public class EquationTests {
         var levelModifier = LevelModifiers.LevelTable[90];
 
         foreach (var (wd, mnd, det, expectedDmg, expectedHeal) in expectedValues) {
-            ((ushort*)((IntPtr)(&inventoryManager) + 9272))[17] = wd;
+            // 🔴 一定要灌在生產端真的會去讀的那個位置。原本寫死 9272/[17] 是上游 5cf304f 之前的版面,
+            //    生產端在那一顆改成 9360/[21] 卻沒改測試 —— 於是這裡灌的值生產端根本讀不到,
+            //    武器威力被當成 0,期望值 3417 變成 884,測試從 2024-11 起就一直是紅的。
+            //    改用生產端的常數,位置永遠一致。WHM 是施法職 → 取魔法威力那一格。
+            ((ushort*)((IntPtr)(&inventoryManager) + Equations.EquippedWeaponDataOffset))[Equations.WeaponMagicDamageIndex] = wd;
             uiState.PlayerState.Attributes[(int)Attributes.AttackMagicPotency] = mnd;
             var detVal = Equations.CalcDet(det, ref statInfo, levelModifier);
 
