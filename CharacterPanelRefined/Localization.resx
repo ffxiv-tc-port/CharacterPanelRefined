@@ -318,4 +318,12 @@ Requires "Show item level information" to be enabled.</value>
         <value>By default the total only adds up the attributes this job actually uses, because main attributes and substats are on completely different scales.
 Turn this on to add up every attribute instead (weapon damage, attack delay and block are still left out).</value>
     </data>
+    <data name="Config_Show_gear_section_for_DoHDoL" xml:space="preserve">
+        <value>Show the gear section for crafters and gatherers</value>
+    </data>
+    <data name="Tooltip_Show_gear_section_for_DoHDoL" xml:space="preserve">
+        <value>Crafter and gatherer panels normally hide the whole gear section. Turn this on to show it there as well, including the average item level and the "Gear Total" row.
+The total already covers crafters and gatherers (Craftsmanship, Control, CP / Gathering, Perception, GP) - it simply was never visible.
+Requires "Show item level information" to be enabled. Reopen the character panel after changing this.</value>
+    </data>
 </root>

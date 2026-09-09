@@ -94,6 +94,14 @@ public sealed class ConfigWindow : IDisposable {
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(Localization.Tooltip_Gear_total_all_stats);
 
+            var bShowGearForDoHDoL = conf.ShowGearSectionForDoHDoL;
+            if (ImGui.Checkbox(Localization.Config_Show_gear_section_for_DoHDoL, ref bShowGearForDoHDoL)) {
+                conf.ShowGearSectionForDoHDoL = bShowGearForDoHDoL;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Show_gear_section_for_DoHDoL);
+
             var bShowSyncedStats = conf.ShowSyncedStatsOnTooltip;
             if (ImGui.Checkbox(Localization.Config_Show_synced_stats, ref bShowSyncedStats)) {
                 conf.ShowSyncedStatsOnTooltip = bShowSyncedStats;

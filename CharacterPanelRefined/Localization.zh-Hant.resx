@@ -318,4 +318,12 @@
         <value>預設只加總本職業真的會用到的屬性，因為主屬性與副屬性的量級不同，全部硬加起來的數字沒有比較的意義。
 開啟後改成加總全部屬性（仍然不含武器基本性能、攻擊間隔與格擋）。</value>
     </data>
+    <data name="Config_Show_gear_section_for_DoHDoL" xml:space="preserve">
+        <value>製作職／採集職也顯示「裝備」區塊</value>
+    </data>
+    <data name="Tooltip_Show_gear_section_for_DoHDoL" xml:space="preserve">
+        <value>製作職／採集職的角色面板原本會把整個「裝備」區塊藏起來。開啟後那邊也會顯示，包含平均裝備等級與「裝備屬性合計」。
+合計本來就算得出製作職／採集職的數值（作業精度、加工精度、CP／獲得力、鑑別力、GP），只是原本看不到。
+需要同時開啟「顯示裝備等級資訊」；變更後請重新開啟角色面板。</value>
+    </data>
 </root>

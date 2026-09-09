@@ -575,7 +575,13 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             offensivePtr->ToggleVisibility(false);
             defensivePtr->ToggleVisibility(false);
             physPropertiesPtr->ToggleVisibility(false);
-            gearPtr->ToggleVisibility(false);
+            // 製作職/採集職原本一律隱藏整個「裝備」區塊(平均裝備等級、裝備等級同步,以及本外掛加的
+            // 「裝備屬性合計」都在裡面)。合計本身早就算得出製作職/採集職的值
+            // (GearStats.IsJobRelevant 有 DoH/DoL 分支),看不到純粹是這一行把整塊關掉。
+            // 開了設定就照一般職業那條規則顯示(仍然要 ShowGearProperties,否則節點在 OnSetup 根本沒佈置)。
+            // ⚠️ 刻意不搬位置:節點在 OnSetup 已經放在右欄(X=183),而製作職/採集職那幾塊都在左欄(X=0),
+            //    兩邊不會蓋到;另外挑一個 Y 沒有實機就驗不了,不值得為了排版冒險。
+            gearPtr->ToggleVisibility(plugin.Configuration.ShowGearProperties && plugin.Configuration.ShowGearSectionForDoHDoL);
             if (expectedDamagePtr != null)
                 expectedDamagePtr->AtkResNode.ParentNode->ToggleVisibility(false);
             if (expectedHealPtr != null)

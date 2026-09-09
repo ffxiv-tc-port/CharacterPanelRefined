@@ -891,5 +891,23 @@ namespace CharacterPanelRefined {
                 return ResourceManager.GetString("Tooltip_Gear_total_all_stats", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show the gear section for crafters and gatherers.
+        /// </summary>
+        internal static string Config_Show_gear_section_for_DoHDoL {
+            get {
+                return ResourceManager.GetString("Config_Show_gear_section_for_DoHDoL", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Crafter and gatherer panels normally hide the whole gear section. [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string Tooltip_Show_gear_section_for_DoHDoL {
+            get {
+                return ResourceManager.GetString("Tooltip_Show_gear_section_for_DoHDoL", resourceCulture);
+            }
+        }
     }
 }

@@ -24,6 +24,9 @@ public class Configuration : IPluginConfiguration {
     /// <summary>合計改成納入全部屬性(不含武器基本性能與攻擊間隔),而不是只算本職業常用的那幾項。</summary>
     public bool GearTotalAllStats { get; set; } = false;
 
+    /// <summary>製作職/採集職的角色面板原本一律隱藏整個「裝備」區塊,開啟後照一般職業的規則顯示。</summary>
+    public bool ShowGearSectionForDoHDoL { get; set; } = false;
+
     public int Version { get; set; } = 0;
 
     public static Configuration Get(IDalamudPluginInterface pluginInterface) {
