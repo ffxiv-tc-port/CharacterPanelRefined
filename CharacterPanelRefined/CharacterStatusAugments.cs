@@ -12,8 +12,21 @@ namespace CharacterPanelRefined;
 
 public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin plugin) : IDisposable {
     private readonly Tooltips tooltips = new();
+    private readonly GearStats gearStats = new();
+
+    /// <summary>已經回報過「原生沒有可覆寫的說明文字」的項目,同一項只寫一次 log。</summary>
+    private readonly HashSet<Tooltips.Entry> missingTooltipSlots = new();
+
+    private readonly HashSet<string> reportedLayoutMismatches = new();
+    private bool layoutMismatchEchoed;
 
     private JobId lastJob;
+
+    /// <summary>「裝備屬性合計」那一列在「裝備等級同步」列有顯示時該待的 Y。</summary>
+    private float gearTotalBaseY;
+
+    /// <summary>上一次組裝備 tooltip 時的同步狀態,用來決定要不要重組。</summary>
+    private bool gearTooltipSynced;
 
     private AtkUnitBase* characterStatusPtr;
     private AtkTextNode* dhChancePtr;
@@ -52,9 +65,25 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     private AtkTextNode* perceptionBasePtr;
     private AtkTextNode* gpPtr;
     private AtkTextNode* gpBasePtr;
+    private AtkTextNode* gearTotalPtr;
+    private AtkCollisionNode* gearTotalCollPtr;
 
     internal void OnSetup(AddonEvent type, AddonArgs args) {
+        // 進場先把節點指標全部清空,不可省略:CharacterStatus 關閉時節點樹會被銷毀,而本外掛只註冊了 PostSetup 與 PreRequestedUpdate、
+        // 沒有任何 Finalize 監聽器,關閉的那一刻沒有地方會清指標。有幾組指標只在對應 Show* 設定開啟時才重新賦值:設定從開改關後再重開面板,
+        // 那組指標會殘留指向已銷毀的節點,而本函式結尾的 characterStatusPtr = atkUnitBase 又讓 RequestedUpdate 開頭「位址不符就 ClearPointers」的防線失效。
+        // 寫入懸空節點是 AVE,try/catch 與例外隔離都攔不到。在這裡清空是安全的:無條件賦值的那些都在結尾呼叫 UpdateCharacterPanelForJob 之前補回,
+        // 條件式的那些保持 null,由各自的使用點判空。
+        ClearPointers();
+
         var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
+        // 下面整段沿節點鏈直接寫入；任何一格型別不符就整個不擴充（不留半套 UI），characterStatusPtr 維持 null 讓 RequestedUpdate 不動手。
+        var layoutMismatch = CharacterStatusLayout.FindMismatch(atkUnitBase);
+        if (layoutMismatch != null) {
+            ReportLayoutMismatch(layoutMismatch);
+            return;
+        }
+
         var uiState = UIState.Instance();
         var job = (JobId)uiState->PlayerState.CurrentClassJobId;
         var lvl = uiState->PlayerState.CurrentLevel;
@@ -172,6 +201,16 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             var avgItemLevelPtr = (AtkComponentNode*)gearPtr->ChildNode;
             ilvlSyncPtr = AddStatRow(avgItemLevelPtr, Localization.Panel_Item_level_Sync, copyColor: true, expandCollisionNode: false);
             CreateNewTooltip(atkUnitBase, ilvlSyncPtr, Tooltips.Entry.ItemLevelSync);
+            if (plugin.Configuration.ShowGearContribution) {
+                // ⚠️ 這一列**必須加在裝備等級同步那一列之後**。CreateNewTooltip 會把
+                //    「label 的 PrevSiblingNode」整個覆寫掉,前面若還接著別人就會被從兄弟鏈上砍掉
+                //    (那一列於是永遠不會被畫出來)。順序反過來就會踩到。
+                gearTotalPtr = AddStatRow(avgItemLevelPtr, Localization.Panel_Gear_Total, expandCollisionNode: false);
+                gearTotalBaseY = gearTotalPtr->AtkResNode.Y;
+                gearTotalCollPtr = AttachRowTooltip(atkUnitBase, gearTotalPtr, Tooltips.Entry.GearContribution);
+                // 節點是全新的,舊的計算結果對不上 —— 逼下一次 RequestedUpdate 重算並重寫文字。
+                gearStats.Invalidate();
+            }
         } else {
             gearPtr->ToggleVisibility(false);
         }
@@ -221,6 +260,16 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         UpdateCharacterPanelForJob(job, lvl);
     }
 
+    /// <summary>log 每種不符寫一次；聊天視窗整個插件生命週期只提示一次（只寫 log 使用者容易沒注意到）。</summary>
+    private void ReportLayoutMismatch(string mismatch) {
+        if (reportedLayoutMismatches.Add(mismatch))
+            Service.PluginLog?.Information($"角色視窗的節點結構與預期不符，這次不加擴充：{mismatch}");
+        if (layoutMismatchEchoed)
+            return;
+        layoutMismatchEchoed = true;
+        Service.ChatGui?.PrintError(Localization.Chat_Layout_Mismatch, "CharacterPanelRefined");
+    }
+
     private void ToggleCustomTooltipNode(AtkTextNode* node, bool enable) {
         node->AtkResNode.ToggleVisibility(enable);
         node->AtkResNode.PrevSiblingNode->ToggleVisibility(enable);
@@ -238,9 +287,76 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         newCollNode->AtkResNode.Y = forTextNode->AtkResNode.Y;
         newCollNode->AtkResNode.AtkEventManager.Event = null;
         component->Component->UldManager.UpdateDrawNodeList();
+
+        // 🔴 AtkStage.Instance() 是 isPointer:true 的靜態位址，會合法回 null；裸解參考是攔不到的 AVE。
+        //    判空刻意放在 GetUISpace()->Create 之前：先配置再放棄會漏掉那塊 UI 記憶體。
+        //    取不到就不掛 tooltip —— 上面的節點都已建好，差別只是滑過去沒有說明文字。
+        var stage = AtkStage.Instance();
+        if (stage == null) return;
+
         var tooltipArgs = IMemorySpace.GetUISpace()->Create<AtkTooltipManager.AtkTooltipArgs>();
         tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
-        AtkStage.Instance()->TooltipManager.AttachTooltip(AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+        stage->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+    }
+
+    /// <summary>
+    /// 幫某一列掛上自己的 tooltip 碰撞節點。與上面的 CreateNewTooltip 的差別是:
+    /// **它不會把後面的兄弟節點砍掉**。CreateNewTooltip 直接對
+    /// <c>label-&gt;PrevSiblingNode</c> 賦值,原本掛在那裡的整段鏈就此消失,
+    /// 只有在該列是這個元件裡最後加上去的一列時才剛好沒事。
+    /// 這裡把新節點**插進**鏈裡(前後都接好),所以加幾列都不會互相吃掉。
+    /// </summary>
+    /// <returns>新建的碰撞節點;任何一步取不到東西就回 null(代表這一列沒有 tooltip,其餘照常)。</returns>
+    private AtkCollisionNode* AttachRowTooltip(AtkUnitBase* parent, AtkTextNode* forTextNode, Tooltips.Entry tooltip) {
+        if (parent == null || forTextNode == null)
+            return null;
+        var component = (AtkComponentNode*)forTextNode->AtkResNode.ParentNode;
+        if (component == null || component->Component == null)
+            return null;
+        var rootNode = component->Component->UldManager.RootNode;
+        if (rootNode == null)
+            return null;
+        var labelNode = forTextNode->AtkResNode.PrevSiblingNode;
+        if (labelNode == null)
+            return null;
+
+        // 🔴 AtkStage.Instance() 是 isPointer:true 的靜態位址,會合法回 null;裸解參考是攔不到的 AVE。
+        //    判空放在配置 UI 記憶體之前 —— 先配置再放棄會漏掉那一塊。
+        var stage = AtkStage.Instance();
+        if (stage == null)
+            return null;
+        var uiSpace = IMemorySpace.GetUISpace();
+        if (uiSpace == null)
+            return null;
+
+        var newCollNode = Util.CloneNode((AtkCollisionNode*)rootNode);
+        var tail = labelNode->PrevSiblingNode;
+        newCollNode->AtkResNode.PrevSiblingNode = tail;
+        if (tail != null)
+            tail->NextSiblingNode = (AtkResNode*)newCollNode;
+        labelNode->PrevSiblingNode = (AtkResNode*)newCollNode;
+        newCollNode->AtkResNode.NextSiblingNode = labelNode;
+        newCollNode->AtkResNode.Y = forTextNode->AtkResNode.Y;
+        newCollNode->AtkResNode.AtkEventManager.Event = null;
+        component->Component->UldManager.UpdateDrawNodeList();
+
+        var tooltipArgs = uiSpace->Create<AtkTooltipManager.AtkTooltipArgs>();
+        if (tooltipArgs == null)
+            return newCollNode;
+        tooltipArgs->TextArgs.Text = (byte*)tooltips[tooltip];
+        stage->TooltipManager.AttachTooltip(AtkTooltipManager.AtkTooltipType.Text, parent->Id, (AtkResNode*)newCollNode, tooltipArgs);
+        return newCollNode;
+    }
+
+    /// <summary>
+    /// 搬動節點的 Y。等同於 AtkResNode::SetYFloat(判空 → 值有變就把 DrawFlags 的 bit0 設起來 → 寫 +0x48 的 Y)。
+    /// 自己做是為了不為了搬一個 Y 就多欠一個特徵碼相依 —— 特徵碼在台服對不上是靜默的。
+    /// </summary>
+    private static void SetNodeY(AtkResNode* node, float y) {
+        if (node == null || Math.Abs(node->Y - y) < 0.01f)
+            return;
+        node->DrawFlags |= 1;
+        node->Y = y;
     }
 
     private AtkTextNode* AddStatRow(AtkComponentNode* parentNode, string label, bool hideOriginal = false, bool copyColor = false, bool expandCollisionNode = true) {
@@ -285,13 +401,44 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             return;
         if (parentNode == null)
             return;
+        if (parentNode->Component == null)
+            return;
         var collisionNode = parentNode->Component->UldManager.RootNode;
         if (collisionNode == null)
             return;
 
-        var ttMgr = AtkStage.Instance()->TooltipManager;
-        var ttMsg = ttMgr.TooltipMap[collisionNode].Value;
+        // AtkStage.Instance() 會合法回 null，裸解參考是攔不到的 AVE。
+        //    取不到就不改 tooltip 文字（維持原文），與上面 collisionNode == null 同一條放棄路徑。
+        var stage = AtkStage.Instance();
+        if (stage == null)
+            return;
+
+        // StdMap 的索引子對「不存在的鍵」不是回 null,而是**先插入一個預設值**再回傳 ref;Pointer<AtkTooltipInfo> 的預設值是 null,
+        // 緊接著的 .Value-> 解參考就是攔不到的 AVE ⇒ 一律走 TryGetValuePointer:它既不會插入垃圾項,也不會讓我們解到 null。
+        // 判準是「原生有沒有替這個碰撞節點掛過 tooltip」;治癒魔力(ExpectedHeal)與魔法攻擊力(ExpectedDamage)那兩處離線證不了。
+        // 取不到就只跳過這一列的說明文字,其餘呼叫點照常(一列失敗不能拖垮其他列)。
+        ref var ttMgr = ref stage->TooltipManager;
+        if (!ttMgr.TooltipMap.TryGetValuePointer(collisionNode, out var ttSlot) || ttSlot == null) {
+            WarnMissingTooltipSlot(entry);
+            return;
+        }
+
+        var ttMsg = ttSlot->Value;
+        if (ttMsg == null) {
+            WarnMissingTooltipSlot(entry);
+            return;
+        }
+
         ttMsg->AtkTooltipArgs.TextArgs.Text = (byte*)tooltips[entry];
+    }
+
+    /// <summary>
+    /// 這一列原生沒有可覆寫的說明文字時寫一則診斷。同一項只寫一次,免得每次開角色面板都洗版。
+    /// </summary>
+    private void WarnMissingTooltipSlot(Tooltips.Entry entry) {
+        if (!missingTooltipSlots.Add(entry))
+            return;
+        Service.PluginLog?.Information($"角色面板:這一列原生沒有可覆寫的說明文字,已跳過該列的說明({entry})");
     }
 
     private void SetTooltip(AtkTextNode* node, Tooltips.Entry entry) {
@@ -346,6 +493,31 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
 
         var jobId = (JobId)uiState->PlayerState.CurrentClassJobId;
 
+        if (gearTotalPtr != null) {
+            // 沒有裝等同步時「裝備等級同步」那一列是隱藏的,會在上面留一個 20px 的空行。
+            // 把本列往上補回去,不要讓面板中間開一個洞。
+            var gearY = ilvlSync == null ? gearTotalBaseY - 20 : gearTotalBaseY;
+            SetNodeY((AtkResNode*)gearTotalPtr, gearY);
+            SetNodeY(gearTotalPtr->AtkResNode.PrevSiblingNode, gearY);
+            if (gearTotalCollPtr != null)
+                SetNodeY((AtkResNode*)gearTotalCollPtr, gearY);
+
+            var allStats = plugin.Configuration.GearTotalAllStats;
+            var synced = ilvlSync != null;
+            // 重算要對每個部位的每個屬性各呼叫兩次遊戲函式,只在裝備/職業/設定變動時做。
+            if (gearStats.Update(jobId, allStats) || gearTooltipSynced != synced) {
+                gearTooltipSynced = synced;
+                // 🔴 讀不到就要在列上看得見。把未知寫成 0 會直接誤導使用者,
+                //    所以完全讀不到是「?」,只讀到一部分是「數字?」。
+                gearTotalPtr->SetText(!gearStats.Available
+                    ? "?"
+                    : gearStats.Complete
+                        ? gearStats.Total.ToString("N0")
+                        : $"{gearStats.Total:N0}?");
+                tooltips.UpdateGearContribution(gearStats, jobId, allStats, synced);
+            }
+        }
+
         StatInfo gcdMain = new(), gcdAlt = new();
         var altGcd = jobId.AltGcd(lvl);
         var gcdMod = jobId.GcdMod(lvl);
@@ -395,22 +567,29 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             }
         }
 
+        // 設定閘門是設定值檢查、不是判空:OnSetup 當下這個設定是關的(這 8 個指標＝null),使用者接著在 /cprconfig 勾開,
+        // 本函式的設定閘門立刻變 true(設定是即時讀的)但節點還沒建;面板開著時按一次 Ctrl 就會走 Update() → RequestedUpdate() 走到這裡。
+        // 所以設定閘門裡面還要逐個判空。
         if (plugin.Configuration.ShowDoHDoLStatsWithoutFood) {
             if (jobId.IsCrafter()) {
-                var fd = Equations.EstimateBaseStats(uiState);
-                craftsmanshipBasePtr->SetText(fd.GetValueOrDefault(Attributes.Craftsmanship, uiState->PlayerState.Attributes[(int)Attributes.Craftsmanship])
-                    .ToString());
-                controlBasePtr->SetText(fd.GetValueOrDefault(Attributes.Control, uiState->PlayerState.Attributes[(int)Attributes.Control]).ToString());
-                cpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxCp].ToString());
-                cpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxCp, uiState->PlayerState.Attributes[(int)Attributes.MaxCp]).ToString());
+                if (craftsmanshipBasePtr != null && controlBasePtr != null && cpPtr != null && cpBasePtr != null) {
+                    var fd = Equations.EstimateBaseStats(uiState);
+                    craftsmanshipBasePtr->SetText(fd.GetValueOrDefault(Attributes.Craftsmanship, uiState->PlayerState.Attributes[(int)Attributes.Craftsmanship])
+                        .ToString());
+                    controlBasePtr->SetText(fd.GetValueOrDefault(Attributes.Control, uiState->PlayerState.Attributes[(int)Attributes.Control]).ToString());
+                    cpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxCp].ToString());
+                    cpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxCp, uiState->PlayerState.Attributes[(int)Attributes.MaxCp]).ToString());
+                }
             } else if (jobId.IsGatherer()) {
-                var fd = Equations.EstimateBaseStats(uiState);
-                gatheringBasePtr->SetText(fd.GetValueOrDefault(Attributes.Gathering, uiState->PlayerState.Attributes[(int)Attributes.Gathering])
-                    .ToString());
-                perceptionBasePtr->SetText(fd.GetValueOrDefault(Attributes.Perception, uiState->PlayerState.Attributes[(int)Attributes.Perception])
-                    .ToString());
-                gpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxGp].ToString());
-                gpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxGp, uiState->PlayerState.Attributes[(int)Attributes.MaxGp]).ToString());
+                if (gatheringBasePtr != null && perceptionBasePtr != null && gpPtr != null && gpBasePtr != null) {
+                    var fd = Equations.EstimateBaseStats(uiState);
+                    gatheringBasePtr->SetText(fd.GetValueOrDefault(Attributes.Gathering, uiState->PlayerState.Attributes[(int)Attributes.Gathering])
+                        .ToString());
+                    perceptionBasePtr->SetText(fd.GetValueOrDefault(Attributes.Perception, uiState->PlayerState.Attributes[(int)Attributes.Perception])
+                        .ToString());
+                    gpPtr->SetText(uiState->PlayerState.Attributes[(int)Attributes.MaxGp].ToString());
+                    gpBasePtr->SetText(fd.GetValueOrDefault(Attributes.MaxGp, uiState->PlayerState.Attributes[(int)Attributes.MaxGp]).ToString());
+                }
             }
         }
 
@@ -428,7 +607,11 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
             offensivePtr->ToggleVisibility(false);
             defensivePtr->ToggleVisibility(false);
             physPropertiesPtr->ToggleVisibility(false);
-            gearPtr->ToggleVisibility(false);
+            // 製作職/採集職原本一律隱藏整個「裝備」區塊(平均裝備等級、裝備等級同步,以及本外掛加的「裝備屬性合計」都在裡面)。
+            // 開了設定就照一般職業那條規則顯示(仍然要 ShowGearProperties,否則節點在 OnSetup 根本沒佈置)。
+            // ⚠️ 刻意不搬位置:節點在 OnSetup 已經放在右欄(X=183),而製作職/採集職那幾塊都在左欄(X=0),兩邊不會蓋到;
+            // 另外挑一個 Y 沒有實機就驗不了,不值得為了排版冒險。
+            gearPtr->ToggleVisibility(plugin.Configuration.ShowGearProperties && plugin.Configuration.ShowGearSectionForDoHDoL);
             if (expectedDamagePtr != null)
                 expectedDamagePtr->AtkResNode.ParentNode->ToggleVisibility(false);
             if (expectedHealPtr != null)
@@ -490,15 +673,29 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
     }
 
     internal void Update() {
-        var charStatus = AtkStage.Instance()->RaptureAtkUnitManager->GetAddonByName("CharacterStatus");
+        // AtkStage.Instance() 是 [StaticAddress(..., isPointer: true)]：產生器讀「指標的位址」再解參考一層，遊戲尚未建立單例時回 null
+        // （非 isPointer 的那種才保證不回 null，是擲 InvalidOperationException）。RaptureAtkUnitManager 又是 AtkStage +0x20 的裸欄位，同樣可能是 null。
+        // 裸解參考 null 原生指標是攔不到的 AVE；取不到就整段跳過，與既有的 charStatus == null 同一條路徑（這一輪不更新面板）。
+        var stage = AtkStage.Instance();
+        if (stage == null) return;
+        var raptureAtkUnitManager = stage->RaptureAtkUnitManager;
+        if (raptureAtkUnitManager == null) return;
+
+        var charStatus = raptureAtkUnitManager->GetAddonByName("CharacterStatus");
         if (charStatus != null && charStatus->IsVisible) {
             RequestedUpdate((IntPtr)charStatus);
-            // Refresh the currently active tooltip
-            var tooltipManager = &AtkStage.Instance()->TooltipManager;
-            var currentTooltipNode = ((AtkResNode**)tooltipManager)[4];
-            if (currentTooltipNode == null)
-                return;
-            plugin.GameFunctions.AtkTooltipManagerShowNodeTooltip(tooltipManager, currentTooltipNode);
+
+            // ⚠️ 「重新整理當前 tooltip」那段已整段移除。原本的程式碼是:
+            //     var tooltipManager  = &AtkStage.Instance()->TooltipManager;
+            //     var currentTooltipNode = ((AtkResNode**)tooltipManager)[4];   // = +0x20
+            //     if (currentTooltipNode == null) return;
+            //     plugin.GameFunctions.AtkTooltipManagerShowNodeTooltip(tooltipManager, currentTooltipNode);
+
+            // 刻意整段移除而不是加防護:現行 ClientStructs 的 AtkTooltipManager 在 +0x20 沒有任何具名欄位,那 8 bytes 內容未知,
+            // 卻被當成 AtkResNode* 交給特徵碼掃來的原生函式解參考;要驗證它是不是節點就得讀 node->Type,那本身就是對可疑指標的解參考,
+            // == null 擋不住計數器/旗標/其他物件指標,例外隔離也無效。
+            // 代價:按 Ctrl 時已顯示的 tooltip 不會立即重繪,要移開滑鼠再移回來;核心的 RequestedUpdate 不受影響。
+            // 要恢復必須先離線確認 AtkTooltipManager+0x20 確實是當前 tooltip 的節點指標,或改用 CS 已具名的 TooltipMap 走訪。
         }
     }
 
@@ -540,6 +737,8 @@ public sealed unsafe class CharacterStatusAugments(CharacterPanelRefinedPlugin p
         perceptionBasePtr = null;
         gpPtr = null;
         gpBasePtr = null;
+        gearTotalPtr = null;
+        gearTotalCollPtr = null;
     }
 
     public void ReloadLocs() {

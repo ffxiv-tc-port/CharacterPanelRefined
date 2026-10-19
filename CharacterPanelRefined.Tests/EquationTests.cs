@@ -1093,7 +1093,9 @@ public class EquationTests {
         var levelModifier = LevelModifiers.LevelTable[90];
 
         foreach (var (wd, mnd, det, expectedDmg, expectedHeal) in expectedValues) {
-            ((ushort*)((IntPtr)(&inventoryManager) + 9272))[17] = wd;
+            // 一定要灌在生產端真的會去讀的那個位置,所以用生產端的常數(位置永遠一致):寫死數字的話,
+            // 生產端改了版面而測試沒跟上時,這裡灌的值生產端讀不到,武器威力會被當成 0。WHM 是施法職 → 取魔法威力那一格。
+            ((ushort*)((IntPtr)(&inventoryManager) + Equations.EquippedWeaponDataOffset))[Equations.WeaponMagicDamageIndex] = wd;
             uiState.PlayerState.Attributes[(int)Attributes.AttackMagicPotency] = mnd;
             var detVal = Equations.CalcDet(det, ref statInfo, levelModifier);
 

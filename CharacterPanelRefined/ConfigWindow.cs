@@ -14,7 +14,7 @@ public sealed class ConfigWindow : IDisposable {
         pluginInterface.UiBuilder.Draw += Draw;
         pluginInterface.UiBuilder.OpenConfigUi += () => showConfig = true;
         Service.CommandManager.AddHandler("/cprconfig",
-            new CommandInfo((_, _) => showConfig ^= true) { HelpMessage = "Open the Character Panel Refined configuration." });
+            new CommandInfo((_, _) => showConfig ^= true) { HelpMessage = Localization.Config_Command_Help });
     }
 
     private void Draw() {
@@ -77,6 +77,30 @@ public sealed class ConfigWindow : IDisposable {
                 conf.ShowGearProperties = bShowGearProps;
                 conf.Save();
             }
+
+            var bShowGearContribution = conf.ShowGearContribution;
+            if (ImGui.Checkbox(Localization.Config_Show_gear_contribution, ref bShowGearContribution)) {
+                conf.ShowGearContribution = bShowGearContribution;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Show_gear_contribution);
+
+            var bGearTotalAllStats = conf.GearTotalAllStats;
+            if (ImGui.Checkbox(Localization.Config_Gear_total_all_stats, ref bGearTotalAllStats)) {
+                conf.GearTotalAllStats = bGearTotalAllStats;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Gear_total_all_stats);
+
+            var bShowGearForDoHDoL = conf.ShowGearSectionForDoHDoL;
+            if (ImGui.Checkbox(Localization.Config_Show_gear_section_for_DoHDoL, ref bShowGearForDoHDoL)) {
+                conf.ShowGearSectionForDoHDoL = bShowGearForDoHDoL;
+                conf.Save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.Tooltip_Show_gear_section_for_DoHDoL);
 
             var bShowSyncedStats = conf.ShowSyncedStatsOnTooltip;
             if (ImGui.Checkbox(Localization.Config_Show_synced_stats, ref bShowSyncedStats)) {

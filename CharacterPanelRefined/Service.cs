@@ -1,3 +1,4 @@
+using Dalamud.Game;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -38,5 +39,11 @@ internal class Service {
 
     [PluginService]
     internal static IAddonLifecycle AddonLifecycle { get; private set; }
+
+    [PluginService]
+    internal static ISigScanner SigScanner { get; private set; }
+
+    [PluginService]
+    internal static IChatGui ChatGui { get; private set; }
 }
 #pragma warning restore 8618

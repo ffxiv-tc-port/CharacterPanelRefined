@@ -7,7 +7,10 @@ namespace CharacterPanelRefined.Tests;
 
 public class TooltipsTest {
     private static string[] locales = { "en", "de", "fr", "ja" };
-    private static Tooltips.Entry[] entries = Enum.GetValues<Tooltips.Entry>().Except(new [] { Tooltips.Entry.MainStat, Tooltips.Entry.ItemLevelSync }).ToArray();
+    // MainStat / ItemLevelSync 是純靜態文字,GearContribution 走自己的組字流程(測試在 GearStatsTests),
+    // 三者都沒有 {PointsPerTier} 這類佔位符,不能丟給下面那條 tooltips.Update() 的預設路徑。
+    private static Tooltips.Entry[] entries = Enum.GetValues<Tooltips.Entry>()
+        .Except(new [] { Tooltips.Entry.MainStat, Tooltips.Entry.ItemLevelSync, Tooltips.Entry.GearContribution }).ToArray();
 
     private Tooltips tooltips = null!;
 

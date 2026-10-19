@@ -18,8 +18,13 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
 
     public CharacterPanelRefinedPlugin(IDalamudPluginInterface pluginInterface) {
         Service.Initialize(pluginInterface);
+        // 放在任何註冊（指令、視窗、事件）之前：位移推不出來時這裡擲例外＝插件載入失敗，不留半套狀態。
+        IlvlSync.Initialize(Service.SigScanner);
 
         Configuration = Configuration.Get(pluginInterface);
+        // 指令的 HelpMessage 在 ConfigWindow 建構時就固定下來,語系必須在那之前套用,
+        // 否則 /xlhelp 與插件安裝器的指令清單會永遠停在英文。
+        ApplyCulture();
         configWindow = new ConfigWindow(this, pluginInterface);
         GameFunctions = new GameFunctions();
         characterStatusAugments = new CharacterStatusAugments(this);
@@ -35,6 +40,11 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
     }
 
     internal void UpdateLanguage() {
+        ApplyCulture();
+        characterStatusAugments.ReloadLocs();
+    }
+
+    private void ApplyCulture() {
         var lang = "";
 
         if (Configuration.UseGameLanguage) {
@@ -43,13 +53,14 @@ public class CharacterPanelRefinedPlugin : IDalamudPlugin {
                 ClientLanguage.French => "fr",
                 ClientLanguage.German => "de",
                 ClientLanguage.Japanese => "ja",
+                // TC(台服)客戶端在 Dalamud 13.0.0.16 之後回報 ClientLanguage 7(TraditionalChinese),
+                // 舊版回報 4(ChineseSimplified)。用數值比較是為了相容列舉沒有 7 這個名字的舊版 Dalamud。
+                (ClientLanguage)4 or (ClientLanguage)5 or (ClientLanguage)7 => "zh-Hant",
                 _ => ""
             };
         }
 
         Localization.Culture = new CultureInfo(lang);
-
-        characterStatusAugments.ReloadLocs();
     }
 
     private void FrameworkOnUpdate(IFramework framework) {

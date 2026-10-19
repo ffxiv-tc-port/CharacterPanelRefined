@@ -8,6 +8,15 @@ using Lumina.Excel.Sheets;
 namespace CharacterPanelRefined;
 
 public class Equations {
+    // 遊戲把「目前裝備的主手」那一列 Item 資料快取在 InventoryManager 內一塊 ClientStructs 沒有具名的區域
+    // (0x2440~0x3620 之間);下面這組位移對應全球 7.1 之後的版面。它們是寫死的,遊戲改 Item 表的欄位配置就會靜默失效
+    // (算出來的武器威力變成別的欄位或 0),所以只放在這裡一份 —— 測試會用同一組常數注入,不要再抄第二份數字出去。
+    internal const int EquippedWeaponDataOffset = 9360;
+    internal const int WeaponPhysicalDamageIndex = 20;
+    internal const int WeaponMagicDamageIndex = 21;
+    internal const int WeaponHqBonusIndex = 33;
+    internal const int WeaponEquipLevelIndex = 39;
+
     public static double CalcDh(int dh, ref StatInfo statInfo, in LevelModifier lvlModifier) {
         statInfo.CurrentValue = dh;
         var cVal = statInfo.DisplayValue = Math.Floor(550d * (dh - lvlModifier.Sub) / lvlModifier.Div) / 1000d;
@@ -125,9 +134,10 @@ public class Equations {
         try {
             var lvl = uiState->PlayerState.CurrentLevel;
             var ap = uiState->PlayerState.Attributes[(int)(jobId.IsCaster() ? Attributes.AttackMagicPotency : Attributes.AttackPower)];
-            var inventoryExcelData = (ushort*)((IntPtr)InventoryManager.Instance() + 9360);
-            var weaponBaseDamage = /* phys/magic damage */ inventoryExcelData[jobId.IsCaster() ? 21 : 20] + /* hq bonus */ inventoryExcelData[33];
-            if (ilvlSync != null && ( /* equip lvl */ inventoryExcelData[39] > lvl || ilvlSyncType == IlvlSyncType.Strict)) {
+            var inventoryExcelData = (ushort*)((IntPtr)InventoryManager.Instance() + EquippedWeaponDataOffset);
+            var weaponBaseDamage = /* phys/magic damage */ inventoryExcelData[jobId.IsCaster() ? WeaponMagicDamageIndex : WeaponPhysicalDamageIndex]
+                                   + /* hq bonus */ inventoryExcelData[WeaponHqBonusIndex];
+            if (ilvlSync != null && ( /* equip lvl */ inventoryExcelData[WeaponEquipLevelIndex] > lvl || ilvlSyncType == IlvlSyncType.Strict)) {
                 if (cachedIlvl?.Ilvl != ilvlSync)
                     cachedIlvl = (ilvlSync.Value, Service.DataManager.GetExcelSheet<ItemLevel>().GetRow(ilvlSync.Value).PhysicalDamage);
                 weaponBaseDamage = Math.Min(cachedIlvl.Value.Dmg, weaponBaseDamage);
