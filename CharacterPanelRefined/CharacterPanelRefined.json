@@ -19,8 +19,8 @@
   "CanUnloadAsync": false,
   "LoadPriority": 0,
   "ImageUrls": [
-    "https://raw.githubusercontent.com/Kouzukii/ffxiv-characterstatus-refined/master/images/image1.png",
-    "https://raw.githubusercontent.com/Kouzukii/ffxiv-characterstatus-refined/master/images/image2.png"
+    "https://raw.githubusercontent.com/ffxiv-tc-port/CharacterPanelRefined/tc-7.30/CharacterPanelRefined/images/image1.png",
+    "https://raw.githubusercontent.com/ffxiv-tc-port/CharacterPanelRefined/tc-7.30/CharacterPanelRefined/images/image2.png"
   ],
   "IconUrl": "https://raw.githubusercontent.com/ffxiv-tc-port/DalamudPluginsTC/main/icons/CharacterPanelRefined.png",
   "Punchline": "精簡角色面板，只留暴擊、直擊等實用數值。",
